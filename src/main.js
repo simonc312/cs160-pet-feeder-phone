@@ -5,7 +5,7 @@ var DIALOG = require('mobile/dialog');
 var MODEL = require('mobile/model');
 var chart = require("charts4kpr.js");
 
-var CHART = new chart.chart(300, 95);
+var CHART = new chart.chart(300, 90);
 var graph;
 var info = new Object();
 var demoData = [5,10,20]
@@ -152,8 +152,18 @@ contents: [
 	    		info.canvas.getContext("2d");
 	    	
 	    		/*Call the bargraph library to update screen*/
-	    		graph.refresh(update(demoData));
-		   }}
+	    		//graph.refresh(update(demoData));
+	    		
+	    		if (hasFoundDevice()) container.invoke(new Message(deviceURL + "getResources"), Message.JSON);
+		   }},
+		   
+		onComplete: { value: function(container, message, json){
+			demoData[0] = Math.round(Number(json.water)/20);
+			demoData[1] = Number(json.lettuce)*25;
+			demoData[2] = Number(json.hay)*10;
+			graph.refresh(demoData);
+			}
+		}
 		}),
 	})
 	]
