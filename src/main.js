@@ -3,9 +3,15 @@ var THEME = require('themes/sample/theme');
 var BUTTONS = require("controls/buttons");
 var DIALOG = require('mobile/dialog');
 var MODEL = require('mobile/model');
+var chart = require("charts4kpr.js");
+
+var CHART = new chart.chart(300, 95);
+var graph;
+var info = new Object();
+var demoData = [5,10,20]
 
 deviceURL = "";
-var whiteSkin = new Skin( { fill:"white" } );
+var whiteSkin = new Skin( { fill:"black" } );
 var cameraSkin = new Skin({width: 48,
 						   height: 48,
 						   fill:"white",
@@ -42,8 +48,8 @@ var haySkin = new Skin({width: 48,
 						   fill:"white",
 						   texture: new Texture('hay.png')
 						   });
-var labelStyle = new Style( { font: "bold 40px", color:"black" } );
-var buttonLabelStyle = new Style({font:"bold 20px", color:"black"});
+var labelStyle = new Style( { font: "bold 40px", color:"white" } );
+var buttonLabelStyle = new Style({font:"bold 20px", color:"white"});
 
 Handler.bind("/discover", Behavior({
 	onInvoke: function(handler, message){
@@ -79,8 +85,23 @@ function hasFoundDevice(){
 	return deviceURL != "";
 }
 
+function update(array) {
+	  var currentIndex = array.length, temporaryValue;
+
+	  // While there remain elements to update...
+	  while (0 !== currentIndex) {
+	    // Pick a remaining element...
+	    currentIndex -= 1;
+	    randomValue = Math.random()*10 - Math.random()*10;
+	    array[currentIndex] += randomValue;
+	  }
+
+	  return array;
+}
+
 var shutterSound = new Sound( mergeURI( application.url, "Shutter-02.wav" ) );
 var titleLabel = new Label({left:0, height:40, string:"Rabbit Care", style: labelStyle});
+
 var pictureButtonTemplate = BUTTONS.Button.template(function($){ return{
 	left:20, right: 0, height:30, skin: cameraSkin,
 	contents: [
@@ -97,20 +118,49 @@ var pictureButtonTemplate = BUTTONS.Button.template(function($){ return{
 		}},
 		onComplete: { value: function(content, message, json){
 			content.skin = cameraSkin;
-			if(message.error != 0){
-				trace(json);
 				profilePicture.url = json.url;
-			}
+				application.behavior.closeDialog();
+				
+
 		}}
 	})
 }});
 
 var pictureButton = new pictureButtonTemplate();
 
-var profilePicture = new Picture({url: 'rabbit.png', height:160});
+var profilePicture = new Picture({left:0,right:0,url: 'rabbit-copy.png', height:160});
 
 
-var counterLabel = new Label({left:0, right:0, height:40, string:"0", style: labelStyle});
+var Screen = Container.template(function($) { return {
+left:0, right:0, top:0, bottom:0, active:true,
+contents: [
+	Canvas($, { anchor:"CANVAS", left:10, right:0, top:0, bottom:0,active:true,
+		behavior: Object.create(Behavior.prototype, {
+			onCreate: {value: function(canvas, data) {
+				this.data = data;			
+			}},
+			onDisplaying: { value: function(canvas) {
+				graph = new CHART.BarGraph(canvas.getContext("2d"), 
+						{primaryColors: ["#0EBFE9","#76EE00","#FFD700"], background: 'black', marginWidth: 10, skipBars: 1});
+				info.ctx = canvas.getContext("2d");
+				info.canvas = canvas;
+			}},
+ 		   onTouchEnded: { value: function(container, id, x,  y, ticks) {	        			   
+		    	/*As of 01/22/2015 this must be called between screen redraws or 
+		    	 * the display will not update properly
+		    	 */
+	    		info.canvas.getContext("2d");
+	    	
+	    		/*Call the bargraph library to update screen*/
+	    		graph.refresh(update(demoData));
+		   }}
+		}),
+	})
+	]
+}});
+
+
+var counterLabel = new Label({left:0, right:0, height:30, string:"0", style: labelStyle});
 var ResetButton = BUTTONS.Button.template(function($){ return{
 	left: 0, right: 0, height:50,
 	contents: [
@@ -135,20 +185,33 @@ var mainColumn = new Column({
 				
 			]
 		}),
-		new Line({left:0, right:0,top:0,name: "contentLine",
+		new Line({left:0, right:0,top:20,name: "contentLine",
 			contents: [
 				profilePicture
 			]
 		}),
-		new Line({left:0, right:0,top:0,height:200,name: "resourceLine",
+		new Line({left:0, right:0,height:100,name: "chartLine",
+			contents: [
+				new Screen({})
+				//new Screen({primaryColor:"#0EBFE9",initData:[5]}),
+				//new Screen({primaryColor:"#76EE00",initData:[10]}),
+				//new Screen({primaryColor:"#FFD700",initData:[20]})
+			]
+		}),
+		new Line({left:0, right:0,top:0,height:50,name: "resourceLine",
 			contents: [
 				new Content({left:0, right:0, top:0, bottom:0, skin: waterSkin}),
 				new Content({left:0, right:0, top:0, bottom:0, skin: lettuceSkin}),
 				new Content({left:0, right:0, top:0, bottom:0, skin: haySkin}),
 			]
 		}),
-		new Label({left:0, right:0, height:40, string:"Counter:", style: labelStyle}),
-		counterLabel,
+		new Line({left:0, right:0,name: "statusLine",
+			contents: [
+				new Label({left:0, right:0, height:40, string:"Status:", style: labelStyle}),
+				counterLabel,
+			]
+		}),
+		
 		new ResetButton(),
 		
 	],
