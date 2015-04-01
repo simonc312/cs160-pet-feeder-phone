@@ -81,6 +81,28 @@ Handler.bind("/busy", Object.create(MODEL.DialogBehavior.prototype, {
 	},
 }));
 
+Handler.bind("/getResources", {
+    onInvoke: function(handler, message){
+        if (hasFoundDevice()) handler.invoke(new Message(deviceURL + "getResources"), Message.JSON);
+    },
+    onComplete: function(handler, message, json){
+         demoData[0] = Math.round(Number(json.water)/20);
+		 demoData[1] = Number(json.lettuce)*25;
+		 demoData[2] = Number(json.hay)*10;
+		 resourceChart.first.behavior.update();
+         handler.invoke( new Message("/delay"));
+    }
+});
+
+Handler.bind("/delay", {
+    onInvoke: function(handler, message){
+        handler.wait(1000); //will call onComplete after 1 seconds
+    },
+    onComplete: function(handler, message){
+        handler.invoke(new Message("/getResources"));
+    }
+});
+
 function hasFoundDevice(){
 	return deviceURL != "";
 }
@@ -137,7 +159,14 @@ contents: [
 	Canvas($, { anchor:"CANVAS", left:10, right:0, top:0, bottom:0,active:true,
 		behavior: Object.create(Behavior.prototype, {
 			onCreate: {value: function(canvas, data) {
-				this.data = data;			
+				this.data = data;
+				this.update = function(){
+					/*As of 01/22/2015 this must be called between screen redraws or 
+				    	 * the display will not update properly
+				    	 */
+					info.canvas.getContext("2d");
+					graph.refresh(demoData);
+				}			
 			}},
 			onDisplaying: { value: function(canvas) {
 				graph = new CHART.BarGraph(canvas.getContext("2d"), 
@@ -146,30 +175,15 @@ contents: [
 				info.canvas = canvas;
 			}},
  		   onTouchEnded: { value: function(container, id, x,  y, ticks) {	        			   
-		    	/*As of 01/22/2015 this must be called between screen redraws or 
-		    	 * the display will not update properly
-		    	 */
-	    		info.canvas.getContext("2d");
-	    	
-	    		/*Call the bargraph library to update screen*/
-	    		//graph.refresh(update(demoData));
-	    		
-	    		if (hasFoundDevice()) container.invoke(new Message(deviceURL + "getResources"), Message.JSON);
-		   }},
+	    		container.invoke(new Message("/getResources"));
+		   }}
 		   
-		onComplete: { value: function(container, message, json){
-			demoData[0] = Math.round(Number(json.water)/20);
-			demoData[1] = Number(json.lettuce)*25;
-			demoData[2] = Number(json.hay)*10;
-			graph.refresh(demoData);
-			}
-		}
 		}),
 	})
 	]
 }});
 
-
+var resourceChart = new Screen({});
 var counterLabel = new Label({left:0, right:0, height:30, string:"0", style: labelStyle});
 var ResetButton = BUTTONS.Button.template(function($){ return{
 	left: 0, right: 0, height:50,
@@ -202,10 +216,7 @@ var mainColumn = new Column({
 		}),
 		new Line({left:0, right:0,height:100,name: "chartLine",
 			contents: [
-				new Screen({})
-				//new Screen({primaryColor:"#0EBFE9",initData:[5]}),
-				//new Screen({primaryColor:"#76EE00",initData:[10]}),
-				//new Screen({primaryColor:"#FFD700",initData:[20]})
+				resourceChart
 			]
 		}),
 		new Line({left:0, right:0,top:0,height:50,name: "resourceLine",
