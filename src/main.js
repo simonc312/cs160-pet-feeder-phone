@@ -9,7 +9,7 @@ var CHART = new chart.chart(300, 90);
 var graph;
 var info = new Object();
 var demoData = [5,10,20]
-
+var cameraDisabled = false;
 deviceURL = "";
 var whiteSkin = new Skin( { fill:"black" } );
 var cameraSkin = new Skin({width: 48,
@@ -17,10 +17,10 @@ var cameraSkin = new Skin({width: 48,
 						   fill:"white",
 						   texture: new Texture('camera.png')
 						   });
-var cameraPressSkin = new Skin({width: 48,
+var cameraDisabledSkin = new Skin({width: 48,
 						   height: 48,
 						   fill:"white",
-						   texture: new Texture('camera-press.png')
+						   texture: new Texture('camera-disabled.png')
 						   });
 var cameraLoadingSkin = new Skin({width: 48,
 						   height: 48,
@@ -65,13 +65,31 @@ Handler.bind("/forget", Behavior({
 //taken from dialog project
 Handler.bind("/busy", Object.create(MODEL.DialogBehavior.prototype, {
 	onDescribe: { value: 
-		function(query) {trace('inside onDescribe');
+		function(query) {
 			return {
                     Dialog: DIALOG.Box,
                     title: "Fetching New Profile Picture!",
                     items: [
                         {
                             Item: DIALOG.Spinner, 
+                        },
+               
+                    ],
+                    cancel: "Cancel",
+                };
+		},
+	},
+}));
+
+Handler.bind("/warning", Object.create(MODEL.DialogBehavior.prototype, {
+	onDescribe: { value: 
+		function(query) {
+			return {
+                    Dialog: DIALOG.Box,
+                    title: "Rabbit Care Notification",
+                    items: [
+                        {
+                            string: "Taking pictures will be disabled for now because your rabbit is sleeping. It needs some peace and quiet just as much as you!" 
                         },
                
                     ],
@@ -131,17 +149,27 @@ var pictureButtonTemplate = BUTTONS.Button.template(function($){ return{
 	],
 	behavior: Object.create(BUTTONS.ButtonBehavior.prototype, {
 		onTap: { value: function(content){
-		if(!hasFoundDevice())
-			return;
-		content.skin = cameraLoadingSkin;
-		shutterSound.play();
-		content.invoke(new Message("/busy"));
-		content.invoke(new Message(deviceURL + "takePicture"), Message.JSON);
+		if(hasFoundDevice() && !cameraDisabled){
+			content.skin = cameraLoadingSkin;
+			shutterSound.play();
+			content.invoke(new Message("/busy"));
+			content.invoke(new Message(deviceURL + "takePicture"), Message.JSON);
+		}else{
+			content.skin = cameraDisabledSkin;
+		}
 		}},
 		onComplete: { value: function(content, message, json){
-			content.skin = cameraSkin;
-				profilePicture.url = json.url;
-				application.behavior.closeDialog();
+			
+			profilePicture.url = json.url;
+			application.behavior.closeDialog();
+			trace(json.warning);
+			if(json.warning == true){
+				content.invoke(new Message("/warning"));
+				cameraDisabled = true;
+				content.skin = cameraDisabledSkin;
+			}else{
+				content.skin = cameraSkin;
+			}
 				
 
 		}}
@@ -184,7 +212,7 @@ contents: [
 }});
 
 var resourceChart = new Screen({});
-var counterLabel = new Label({left:0, right:0, height:30, string:"0", style: labelStyle});
+var statusLabel = new Label({left:0, right:0, height:40, string:"---", style: labelStyle});
 var ResetButton = BUTTONS.Button.template(function($){ return{
 	left: 0, right: 0, height:50,
 	contents: [
@@ -195,7 +223,7 @@ var ResetButton = BUTTONS.Button.template(function($){ return{
 			content.invoke(new Message(deviceURL + "reset"), Message.JSON);
 		}},
 		onComplete: { value: function(content, message, json){
-			counterLabel.string = json.count;
+			statusLabel.string = json.count;
 		}}
 	})
 }});
@@ -229,7 +257,7 @@ var mainColumn = new Column({
 		new Line({left:0, right:0,name: "statusLine",
 			contents: [
 				new Label({left:0, right:0, height:40, string:"Status:", style: labelStyle}),
-				counterLabel,
+				statusLabel,
 			]
 		}),
 		
@@ -238,10 +266,14 @@ var mainColumn = new Column({
 	],
 	behavior: Behavior({
 		onTouchEnded: function(content){
-			if (deviceURL != "") content.invoke(new Message(deviceURL + "getCount"), Message.JSON);
+			if (hasFoundDevice()) content.invoke(new Message(deviceURL + "getStatus"), Message.JSON);
 		},
 		onComplete: function(content, message, json){
-			counterLabel.string = json.count;
+			statusLabel.string = json.status;
+			if(statusLabel.string !="Asleep"){
+				cameraDisabled = false;
+				pictureButton.skin = cameraSkin;
+			}
 		}	
 	})
 });
